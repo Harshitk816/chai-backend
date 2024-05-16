@@ -24,4 +24,11 @@ app.use(express.urlencoded(
 
 app.use(cookieParser())
 
+//importing routes
+import userRouter from "./routes/user.routes.js"
+
+
+//routes declaration
+app.use("/api/v1/users",userRouter)//this acts as a middleware and now the control is shifted to user.routes.js 
+
 export {app}
