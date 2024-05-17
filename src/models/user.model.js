@@ -51,7 +51,7 @@ const userSchema = new Schema(
 userSchema.pre("save",async function(next){
     //password encryption
     if(!this.modified("password")) return next() //if password is not modified then simply move onto next middleware
-    this.password = bcrypt(this.password,10)//encrypting 
+    this.password =await bcrypt(this.password,10)//encrypting 
     next()//a flag to move to next middleware
 
 userSchema.methods.isPasswordCorrect = async function(password){//creating custom methods
