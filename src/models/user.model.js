@@ -50,9 +50,10 @@ const userSchema = new Schema(
 
 userSchema.pre("save",async function(next){
     //password encryption
-    if(!this.modified("password")) return next() //if password is not modified then simply move onto next middleware
-    this.password =await bcrypt(this.password,10)//encrypting 
+    if(!this.isModified("password")) return next() //if password is not modified then simply move onto next middleware
+    this.password =await bcrypt.hash(this.password,10)//encrypting 
     next()//a flag to move to next middleware
+})
 
 userSchema.methods.isPasswordCorrect = async function(password){//creating custom methods
     return await bcrypt.compare(password,this.password)  //will return true/false based on promise resol
@@ -86,6 +87,6 @@ userSchema.methods.generateRefreshToken = function(){
      )
  }
 
-})
+
 
 export const User = mongoose.model("User",userSchema)

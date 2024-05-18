@@ -17,7 +17,7 @@ const registerUser=asyncHandler(async(req,res)=>{
         //return res
 
         const {fullName, email, password, username}=req.body//get user details
-        console.log(email)
+        // console.log("userController req.body :", req.body)
 
 
         //validation for non-empty fields
@@ -29,7 +29,7 @@ const registerUser=asyncHandler(async(req,res)=>{
         }
 
         //check if user already exists
-        const existedUser = User.findOne({//findOne return the very first result matching the value 
+        const existedUser =await User.findOne({//findOne return the very first result matching the value 
             $or:[{username}, {email}]//uses OR operator to find any of the values(urername OR email)
         })
 
@@ -37,10 +37,16 @@ const registerUser=asyncHandler(async(req,res)=>{
             throw new ApiError(409,"User with email or username already exists")
         }
 
+        // console.log("userController req.files: ",req.files)
+
         //handling images and files
         const avatarLocalPath = req.files?.avatar[0]?.path;//{req.files} is provided by multer 
 
-        const coverImageLocalPath = req.files?.coverImage[0]?.path;
+        //const coverImageLocalPath = req.files?.coverImage[0]?.path;
+        let coverImageLocalPath;
+        if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0){
+            coverImageLocalPath=req.files.coverImage[0].path;
+        }
 
         //check avatar path
 
@@ -60,8 +66,8 @@ const registerUser=asyncHandler(async(req,res)=>{
         //create user object
         const user = await User.create({
             fullName,
-            avatar:avatar.url,
-            coverImage:coverImage.url || "", //as cover image is not compulsary, send empty string
+            avatar:avatar?.url,
+            coverImage:coverImage?.url || "", //as cover image is not compulsary, send empty string
             email,
             password,
             username:username.toLowerCase()
