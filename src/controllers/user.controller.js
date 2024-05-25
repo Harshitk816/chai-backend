@@ -326,6 +326,21 @@ const updateUserAvatar = asyncHandler(async(req, res)=>{
         return new ApiError(400, "Avatar upload failed.")
     }
 
+    //deleting from cloudinary
+
+    const oldImageUrl = await User.findOne(req.user?._id).select("avatar")//getting old image url from database
+    const oldImagePublicId = oldImageUrl.split('/').pop().split('.')[0];
+
+    await cloudinary.uploader.destroy(oldImagePublicId, (error, result) => {
+        if (error) {
+          console.error(error);
+        } else {
+          console.log(result);
+        }
+      });
+
+
+
     //updating in DB
     const user = await User.findOneAndUpdate(
         req.user?._id,
