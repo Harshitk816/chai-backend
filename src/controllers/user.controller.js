@@ -3,9 +3,11 @@ import {ApiError} from "../utils/ApiError.js"
 import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
+
 import { response } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import jwt from "jsonwebtoken"
+import { deleteCloudinaryImage } from "../utils/deleteCloudinaryImage.js";
 
 const generateAccessAndRefreshToken = async(userId)=>{
     try{
@@ -329,15 +331,7 @@ const updateUserAvatar = asyncHandler(async(req, res)=>{
     //deleting from cloudinary
 
     const oldImageUrl = await User.findOne(req.user?._id).select("avatar")//getting old image url from database
-    const oldImagePublicId = oldImageUrl.split('/').pop().split('.')[0];
-
-    await cloudinary.uploader.destroy(oldImagePublicId, (error, result) => {
-        if (error) {
-          console.error(error);
-        } else {
-          console.log(result);
-        }
-      });
+    await deleteCloudinaryImage(oldImageUrl)
 
 
 
@@ -374,6 +368,11 @@ const updateUserCoverImage = asyncHandler(async(req, res)=>{
         return new ApiError(400, "Cover Image upload failed.")
     }
 
+    //deleting from cloudinary
+
+    const oldImageUrl = await User.findOne(req.user?._id).select("coverImage")//getting old image url from database
+    await deleteCloudinaryImage(oldImageUrl)
+
     //updating in DB
     const user = await User.findOneAndUpdate(
         req.user?._id,
@@ -392,6 +391,85 @@ const updateUserCoverImage = asyncHandler(async(req, res)=>{
     )
 })
 
+//getting user's channel profile
+const getUserChannelProfile = asyncHandler(async(req, res)=>{
+    const {username} = req.params//getting the username of channel from url
+    if(!username?.trim()){//if username is empty, throw error
+
+        return new ApiError(400, "Username is missing")
+    }
+
+     //aggregation pipeline
+     const channel = await User.aggregate([//aggregate takes and array of stages
+        {//stage1  matching the documents
+            $match:{
+                username:username?.toLowerCase()//this username will be used to search the subscribers who have subsrcibed to channel e.g. chai aur code comes inside this document
+            }
+        },//to find the channel's subscribers
+        {//stage 2 
+            $lookup:{
+                from:"subscriptions", //where to look
+                localField:"_id",//identity in current document
+                foreignField:"channel",//identity in foreign document
+                as:"subscribers"//will be named as
+            }
+        },
+        //to find the channels i have subscribed to
+        {
+            $lookup:{
+                from:"subscriptions",
+                localField:"_id",
+                foreignField:"subscriber",
+                as:"subscribedTo"
+            }
+        },
+        //counting subscribers and subscribed to
+        {
+            $addFields:{//this will add additional fields to the document
+                subscribersCount:{
+                    $size:"$subscribers"//will calculate the size
+                },
+                channelsSubscribedToCount:{
+                    $size:"$subscribedTo"
+                },
+                isSubscribed:{//will check if i am (logged user ) is subscribed to the viewing channel
+                    $cond:{
+                        if:{$in:[req.user?._id, "$subscribers.subscriber"]},//if logged user is in the subscribers array
+                        then:true,//if present then should be add to isSubscribed
+                        else:false
+
+
+                    }
+
+                }
+            }
+        },
+        //projecting only the values required
+        {
+            $project:{
+                username:1,
+                fullName:1,
+                subscribersCount:1,
+                channelsSubscribedToCount:1,
+                avatar:1,
+                email:1,
+                isSubscribed:1,
+                coverImage:1,
+            }
+        }
+     ])
+
+     if(!channel?.length){//if no values
+        new ApiError(404, "channel does not exist")
+     }
+
+     return res
+     .status(200)
+     .json(
+        new ApiResponse(200, channel[0],"user channel fetched successfully.")
+     )
+})
+
 
 export {registerUser,
         loginUser,
@@ -401,4 +479,5 @@ export {registerUser,
         getCurrentUser,
         updateAccountDetails,
         updateUserAvatar,
-        updateUserCoverImage}
+        updateUserCoverImage,
+        getUserChannelProfile}
