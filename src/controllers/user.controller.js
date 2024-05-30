@@ -8,6 +8,7 @@ import { response } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import jwt from "jsonwebtoken"
 import { deleteCloudinaryImage } from "../utils/deleteCloudinaryImage.js";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async(userId)=>{
     try{
@@ -404,6 +405,7 @@ const getUserChannelProfile = asyncHandler(async(req, res)=>{
         {//stage1  matching the documents
             $match:{
                 username:username?.toLowerCase()//this username will be used to search the subscribers who have subsrcibed to channel e.g. chai aur code comes inside this document
+                
             }
         },//to find the channel's subscribers
         {//stage 2 
@@ -470,6 +472,59 @@ const getUserChannelProfile = asyncHandler(async(req, res)=>{
      )
 })
 
+//getting user's watch history
+const getWatchHistory = asyncHandler(async(req, res)=>{
+    const user = await User.aggregate([
+        {//stage 1
+            $match:{//matching the user with the help of id
+                _id: new mongoose.Types.ObjectId(req.user._id)//this is done becuz we get a string for id, internally mongoose work and provide us with the id, now we are doing it manually
+            }
+
+        },
+        {
+            $lookup:{
+                from:"videos",
+                localField:"watchHistory",
+                foreignField:"_id",
+                as:"watchHistory",//now we need to use sub-pipeline to get the owner(user)
+                pipeline:[
+                    {
+                        $lookup:{
+                            from:"users",
+                            localField:"owner",
+                            foreignField:"_id",
+                            as:"owner",
+                            pipeline:[//again creating sub pipeline to get only the fullName, username and avatar of user
+                                {
+                                    $project:{
+                                        fullName:1,
+                                        username:1,
+                                        avatar:1
+
+                                    }
+                                }
+                            ]
+                        }
+                    },//till now we will get the user details inside the owner[0] as an array, we should optmize it to get necessary details only
+                    {
+                        $addFields:{//adding new field but will name it as owner so it overwrite 
+                            owner:{
+                                $first:"$owner"//getting the first obj from owner array
+                            }
+                        }
+                    }
+                ]
+
+            }
+        }
+    ])
+    return res
+            .status(200)
+            .json(
+                new ApiResponse(200,user[0].watchHistory, "Watch History fetched Successfully")
+            )
+})
+
 
 export {registerUser,
         loginUser,
@@ -480,4 +535,5 @@ export {registerUser,
         updateAccountDetails,
         updateUserAvatar,
         updateUserCoverImage,
-        getUserChannelProfile}
+        getUserChannelProfile,
+        getWatchHistory}
